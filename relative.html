@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ch">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--   <meta http-equiv="X-UA-Compatible" content="ie=edge"> -->
+  <style>
+    body {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+    }
+    .container {
+      font-family: 'Helvetica Neue',Arial,freesans,sans-serif;
+      font-size: 17px;
+      text-align: center;
+      width: 50%;
+      height: 60%;
+      margin: 0 auto;
+/*      margin-bottom: 500px;*/
+    }
+    .chart-container {
+      width: 100%;
+      height: 90%;
+      margin: 0 auto;
+      position: relative;
+    }
+    #chart {
+      width: 100%;
+      height: 100%;
+/*      min-height: 600px;*/
+      margin: 0 auto;
+    }
+
+    .color-controler ul{
+      height: 10%;
+      max-width: 1000px;
+/*      width: 100%;*/
+      margin: 0 auto;
+      clear: left; 
+      float: left; 
+      position: relative; 
+      left: 50%;
+      text-align: center;
+    }
+
+    .color-controler li{
+      line-height: 25px; 
+/*      margin: 0 5px; */
+      display: block; 
+      float: left; 
+      position: relative; 
+      right: 50%;
+      margin: auto 0.4em;
+      font-size: 13px;
+    }
+
+    .axis text{
+      font-family: 'Helvetica Neue',Arial,freesans,sans-serif;
+    }
+
+    .yaxis text{
+      font-size: 12px;
+    }
+
+    .base text{
+      font-size: 12px;
+      font-family: 'Helvetica Neue',Arial,freesans,sans-serif;
+    }
+
+    text.part-values{
+      font-size: 11px;
+      font-family: 'Helvetica Neue',Arial,freesans,sans-serif;
+    }
+
+    .parts rect {
+      opacity: 0.8;
+    }
+
+    .part-bars {
+      cursor: pointer;
+    }
+
+    .xaxis .tick line {
+      stroke: silver;
+    }
+
+    .xaxis-bottom .tick line {
+      stroke: #ddd;
+      stroke-dasharray: 2,2;
+    }
+
+    #info {
+        position: absolute;
+        display: none;
+        background: rgba(0,0,40,0.8);
+        font-size: 12px;
+        color: white;
+        padding: .6em;
+        -webkit-border-radius: 4px;
+        -moz-border-radius: 4px;
+        border-radius: 4px;
+        min-width: 40px;
+        max-width: 33%;/*
+        border: thin solid #aaa;
+        -webkit-box-shadow: 4px 4px 4px rgba(0, 0, 0, 0.2);
+        -moz-box-shadow: 4px 4px 4px rgba(0, 0, 0, 0.2);
+        box-shadow: 4px 4px 4px rgba(0, 0, 0, 0.2);*/
+    }
+
+    #info span, #info p {
+      margin: auto;
+    }
+
+    #info span {
+      text-align: center;
+      border-bottom: 1px gray solid;
+    }
+
+    .topic span {
+      height: 5%
+      text-align: center;
+    }
+
+  </style>
+  <title>Document</title>
+  <script src="https://d3js.org/d3.v4.min.js"></script>
+  <script src="colorbrewer.js"></script>
+</head>
+<body>
+  <div class="container">
+    <span class="topic">各赛道机构占比</span>
+    <div class="chart-container" id="container">
+      <svg id="chart"></svg>
+      <div id="info">
+        <span>infoTitle</span>
+        <div class="desc"></div>
+      </div>
+    </div>
+    <div class="color-controler"></div>
+  </div>
+</body>
+<script>
+
+d3.csv("./sortableBarChart1.csv", function(err, data){
+
+  if (err) throw err;
+
+  const size = {};
+  const margin = {top: 20, right: 40, bottom: 10, left: 46};
+
+  const svg = d3.select("#chart");
+  const container = d3.select("#container");
+  const win = d3.select(window);
+
+  const xScale = d3.scaleLinear();
+  const yScale = d3.scaleBand().padding(0.2);
+
+  const xAxis = d3.axisTop(xScale);
+  const xAxisBottom = d3.axisBottom(xScale);
+  const yAxis = d3.axisLeft(yScale);
+
+  const types = data.columns.concat()
+  console.log(types)
+  types.splice(0,1);
+
+  for (let x of data){
+
+    const values = [];
+
+    for (let z of types){
+      values.push({name: x.name, type: z, value: parseInt(x[z])});
+    }
+      x.sum = d3.sum(values.map(d => d.value));
+      x.total=1
+      // values.map(function(d){
+      //   console.log(d)
+      //   d.percentage = d.value/d.sum
+      // })
+    for (let z of values){
+      z.sum = x.sum;
+      z.percentage = z.value/z.sum;
+      z.total = 1;
+      // console.log(z)
+    }
+    x.values = values;
+    // console.log(x)
+    calcLeft(x);
+    calcLeftPercentage(x)
+  }
+
+  console.log(data)
+  const barColor = d3.scaleOrdinal()
+                      .range(colorbrewer.Paired[8])
+                      .domain(types);
+
+  // const sumColor = d3.scaleLinear()
+  //                     .range(["red", "gray", "#00cd77"]);
+
+  let yDomain = true;
+
+  xScale.domain([0, d3.max(data, d => d.total)]).nice();
+  yScale.domain(data.sort((a, b) => b.sum - a.sum).map(d => d.name));
+
+  const mean = d3.mean(data, d => d.total);
+  const far = d3.max(data, d => Math.abs(d.total - mean));
+  // sumColor.domain([mean-far, mean, mean+far]);
+
+  const info = d3.select("#info");
+  let infoMargin;
+
+  const g = svg.append("g").attr("class", "axis");
+
+  const rows = svg.selectAll(".rows")
+                  .data(data)
+                  .enter()
+                  .append("g")
+                  .attr("class", "rows");
+
+  rows.append("g")
+        .attr("class", "base")
+        .append("rect")
+        .attr("class", "base-bar")
+        .attr("y", 0)
+        // .attr("stroke", "black")
+        .attr("fill", "none");
+
+  rows.selectAll(".base")
+      .append("text")
+      // .attr("fill", d => sumColor(d.sum))
+      .attr("text-anchor", "start")
+      .attr("dominant-baseline", "middle")
+      .attr("dx", "-3em")
+      .attr("dy", 1)
+      .text(d => d.sum);
+
+  rows.append("g")
+      .attr("class", "overlays")
+        .append("g")
+        .attr("class", "parts")
+        .selectAll(".part-bars")
+        .data(d => d.values)
+        .enter()
+        .append("g")
+        .attr("class", "part-bars")
+          .append("rect")
+          .attr("class", (v, i) => "parts-" + i)
+          attr("y",v => yScale(v.leftPercentage))
+          .attr("x", xScale(v.name))
+          .attr("fill", v => barColor(v.type));
+
+  // rows.selectAll(".part-bars")
+  //     .append("text")
+  //     .attr("class", "part-values")
+  //     .attr("fill", "white")
+  //     .attr("dominant-baseline", "ideographic")
+  //     .attr("dx", ".3em")
+  //     .attr("dy", -2)
+  //     .text(v => v.percentage);
+
+  svg.append("g")
+      .attr("class", "hovered");
+
+  rows.selectAll(".part-bars")
+      .on("click", function(v){
+        const primer = v.type === types[0];
+        sortParts(v.type);
+        info.style("display", "none");
+        svg.select(".hovered").selectAll("rect")
+            .transition().duration(primer ? 0 : 500)
+            .attr("y",v => yScale(v.leftPercentage))
+            .transition().delay(primer ? 0 : 250).duration(500)
+            .attr("x", xScale(v.name))
+            .transition().delay(500).duration(1000)
+            .remove();
+      })
+      .on("mouseover", function(v){
+        info.style("display", "inline");
+        const description = v.type + "，" + v.value;
+        createInfo(info, v.name, description, d3.format(".1%")(v.percentage));
+
+    svg.select(".hovered")
+            .append("rect")
+            .datum(v)
+            .attr("fill", "none")
+            .attr("stroke", "yellow")
+            .attr("stroke-width", 3)
+            .attr("x", xScale(v.name))
+            .attr("y", v => yScale(v.leftPercentage))
+            .attr("height", yScale(v.percentage))
+            .attr("width", xScale.bandwidth());
+      })
+      .on("mousemove", function(){
+        var mouse = d3.mouse(document.getElementById("chart"));
+        info.style("display", "inline")
+            .style("left", (mouse[0] + 45 + infoMargin[1]) + "px")
+            .style("top", (mouse[1] + 25 + infoMargin[0]) + "px");
+      })
+      .on("mouseout", function(v){
+        info.style("display", "none");
+        svg.select(".hovered").selectAll("rect")
+            .remove();
+      });
+
+  g.append("g")
+    .attr("class", "axis xaxis");
+  g.append("g")
+    .attr("class", "axis xaxis-bottom");
+  g.append("g")
+    .attr("class", "axis yaxis");
+
+  svg.call(createLegend)
+      .call(resize);
+
+  win.on("resize", resize);
+
+  function createLegend(){
+
+    const colorControler = d3.select(".color-controler").append("ul");
+    const markerSize = parseFloat(colorControler.style("font-size").slice(0,-2));
+    colorControler.selectAll("li")
+                  .data(barColor.domain())
+                  .enter()
+                  .append("li")
+                  .append("svg")
+                    .attr("width", markerSize)
+                    .attr("height", markerSize)
+                    .attr("style", "inline")
+                    .append("rect")
+                      .attr("class", "color-switch active")
+                      .style("cursor", "pointer")
+                      .attr("width", markerSize*0.8)
+                      .attr("height", markerSize*0.8)
+                      .attr("y", markerSize / 5)
+                      // .attr("r", markerSize / 2 - 1)
+                      .attr("fill", d => barColor(d))
+                      .on("click", function(d, i){
+                        const channel = d3.select(this).classed("active");
+                        d3.select(this)
+                          .classed("active", !channel)
+                          .attr("fill", channel ? "silver" : barColor(d));
+                        rows.selectAll(".parts").selectAll(".parts-" + i)
+                            .attr("fill", channel ? "none" : barColor(d));
+                      });
+    colorControler.selectAll("li")
+                  .append("text")
+                  .attr('font-size','10px')
+                  .text(d => d);
+                  
+  }
+
+  function resize(){
+    const colorHeight = parseFloat(d3.select(".color-controler").style("height").slice(0,-2));
+    size.width = parseFloat(svg.style("width").slice(0,-2));
+    size.height = parseFloat(svg.style("height").slice(0,-2));
+    console.log(size.width,size.height);
+    // size.height = window.innerHeight - colorHeight;
+
+    svg.attr("width", size.width)
+        .attr("height", size.height);
+
+    xScale.range([margin.left, size.width - margin.right]);
+    yScale.range([margin.top, size.height - margin.bottom]);
+
+    moveAxis();
+    moveBars();
+
+    infoMargin = calcMargin(container);
+
+    }
+
+    function moveAxis(duration = 0, delay = 0){
+      xAxis.tickSize(-(size.height-margin.top-margin.bottom));
+      xAxisBottom.tickSize(-(size.height-margin.top-margin.bottom));
+      yAxis.tickSize(0);
+
+      d3.select(".xaxis")
+        .transition().duration(duration).delay(delay)
+        .attr("transform", "translate(0," + margin.top + ")")
+        .call(xAxis);
+
+      const xAxisLength = (svg.select(".xaxis").selectAll("text").size() * 4);
+      xAxisBottom.ticks(xAxisLength);
+
+      d3.select(".xaxis-bottom")
+        .transition().duration(duration).delay(delay)
+        .attr("transform", "translate(0," + (size.height - margin.bottom) + ")")
+        .call(xAxisBottom);
+
+      svg.select(".xaxis-bottom").selectAll("text").remove();
+
+      d3.select(".yaxis")
+        .transition().duration(duration).delay(delay)
+        .attr("transform", "translate(" + margin.left + ",0)")
+        .call(yAxis);
+    }
+
+    function moveBars(duration = 0, delay = 0){
+
+      rows.transition().duration(duration).delay(delay)
+          .attr("transform", d => "translate(0," + yScale(d.name) + ")");
+
+      rows.selectAll(".base").selectAll("rect")
+          .transition().duration(duration).delay(delay)
+          .attr("x", v => xScale(v.leftPercentage))
+          .attr("height", d => yScale(d.total) )
+          .attr("width", xScale.bandwidth());
+
+      rows.selectAll(".base").selectAll("text")
+          .transition().duration(duration).delay(delay)
+          .attr("x", v => xScale(v.leftPercentage))
+          .attr("y", -size.height);
+
+      rows.selectAll(".parts").selectAll("rect")
+          .transition().duration(duration).delay(delay)
+          .attr("x", v => xScale(v.leftPercentage))
+          .attr("y", "0")
+          .attr("height", function(v) { 
+            return Math.max((yScale(v.percentage) ), 0)})
+          .attr("width", xScale.bandwidth());
+
+      rows.selectAll(".parts").selectAll("text")
+          .transition().duration(duration).delay(delay)
+          // .attr("transform", v => "translate(" + 0 + "," + (yScale(v.leftPercentage)) +")")
+          .attr("y", 0)
+          .attr("x", xScale.bandwidth())
+          .attr("display", v => yScale(v.leftPercentage) - margin.top < 22 ? "none" : "inline");
+      }
+
+    function sortParts(key){
+      const prime = types[0];
+      sortX(key, prime);
+      sortYPercentage(key, prime);
+    }
+
+    function sortX(key, prime){
+      if(key !== prime){
+        types.splice(types.indexOf(key), 1)
+        types.splice(0, 0, key);
+
+        for (let x of data){
+          x.values.sort(function(a, b){return types.indexOf(a.type) - types.indexOf(b.type);});
+          calcLeftPercentage(x);
+        }
+
+        rows.data(data);
+        moveBars(500);/*
+        moveAxis(500);*/
+      }
+    }
+
+    function calcLeft(datum){
+      let sum = 0;
+      for (let n of datum.values){
+        // console.log(n)
+        n.left = sum;
+        sum += n.value;
+        // console.log(n)
+      }
+    }
+
+    function calcLeftPercentage(datum){
+      let sum = 0;
+      for (let n of datum.values){
+        // console.log(n)
+        n.leftPercentage = sum;
+        sum += n.percentage;
+        // console.log(n)
+      }
+    }
+
+    function sortY(key, prime){
+      const jake = key === prime;
+      const delay = jake ? 0 : 750;
+      const sortFunction = function(a, b){
+        return jake && !yDomain ? b.total - a.total :
+        b.values[0].value - a.values[0].value;
+      };
+      const domain = data.concat().sort(sortFunction).map(d => d.name);
+      yScale.domain(domain);
+
+      yDomain = jake ? !yDomain : false;
+
+      moveBars(500, delay);
+      moveAxis(500, delay);
+
+    }
+
+    function sortYPercentage(key, prime){
+      const jake = key === prime;
+      const delay = jake ? 0 : 750;
+
+      const sortFunction = function(a, b){
+        return jake && !yDomain ? b.sum - a.sum :
+        b.values[0].percentage - a.values[0].percentage;
+      };
+      const domain = data.concat().sort(sortFunction).map(d => d.name);
+      yScale.domain(domain);
+
+      yDomain = jake ? !yDomain : false;
+
+      moveBars(500, delay);
+      moveAxis(500, delay);
+
+    }
+
+    function createInfo(element, title, ...args){
+      element.select("span").text(title);
+      const paraphs = element.select(".desc").selectAll("p").data(args);
+      paraphs.exit().remove();
+      paraphs.enter().append("p").merge(paraphs)
+              .text(d => d);
+    };
+
+    function calcMargin(parent){
+      const marginArr = parent.style("margin").split(" ");
+      return marginArr.length === 1 ? [0, 0] : marginArr.map(d => parseFloat(d.slice(0,-2)));
+    }
+
+});
+
+</script>
+</html>
